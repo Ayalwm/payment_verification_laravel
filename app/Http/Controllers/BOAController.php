@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\CBEService;
-use Illuminate\Http\Request;
+use App\Services\BOAService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Exception;
 
-class CBEController extends Controller
+class BOAController extends Controller
 {
-    private CBEService $cbeService;
+    private BOAService $boaService;
 
-    public function __construct(CBEService $cbeService)
+    public function __construct(BOAService $boaService)
     {
-        $this->cbeService = $cbeService;
+        $this->boaService = $boaService;
     }
 
     /**
-     * Verify CBE payment transaction
+     * Verify BOA payment transaction
      */
     public function verifyPayment(Request $request): JsonResponse
     {
@@ -26,7 +26,7 @@ class CBEController extends Controller
             // Validate input
             $validator = Validator::make($request->all(), [
                 'transaction_id' => 'required|string|min:10',
-                'account_number' => 'required|string|min:8|max:20'
+                'sender_account_last_5_digits' => 'required|string|min:5|max:5'
             ]);
 
             if ($validator->fails()) {
@@ -38,39 +38,39 @@ class CBEController extends Controller
             }
 
             $transactionId = $request->input('transaction_id');
-            $accountNumber = $request->input('account_number');
+            $senderAccountLast5Digits = $request->input('sender_account_last_5_digits');
 
-            // Call the CBE service to process PDF fresh every time
-            $result = $this->cbeService->verifyPayment($transactionId, $accountNumber);
+            // Call the BOA service to process web scraping fresh every time
+            $result = $this->boaService->verifyPayment($transactionId, $senderAccountLast5Digits);
 
             // Return verification result directly without storing in database
             return response()->json([
                 'success' => true,
                 'data' => $result,
-                'message' => 'CBE transaction verification completed'
+                'message' => 'BOA transaction verification completed'
             ]);
 
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'CBE verification failed: ' . $e->getMessage()
+                'message' => 'BOA verification failed: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Get CBE service status (no database required)
+     * Get BOA service status (no database required)
      */
     public function status(): JsonResponse
     {
         return response()->json([
             'success' => true,
             'data' => [
-                'service' => 'CBE Transaction Verification',
+                'service' => 'BOA Transaction Verification',
                 'status' => 'active',
                 'description' => 'Service is running and ready to verify transactions'
             ],
-            'message' => 'CBE service status retrieved successfully'
+            'message' => 'BOA service status retrieved successfully'
         ]);
     }
 }
