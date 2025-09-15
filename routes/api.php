@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CBEController;
 use App\Http\Controllers\BOAController;
 use App\Http\Controllers\TelebirrController;
+use App\Http\Controllers\ImageVerificationController;
 // use App\Http\Controllers\QRCodeController;
 
 /*
@@ -38,6 +39,13 @@ Route::prefix('boa')->group(function () {
 Route::prefix('telebirr')->group(function () {
     Route::post('/verify', [TelebirrController::class, 'verifyPayment']);
     Route::get('/status', [TelebirrController::class, 'status']);
+});
+
+// Image Verification Routes
+Route::prefix('image')->group(function () {
+    Route::post('/cbe/verify', [ImageVerificationController::class, 'verifyCbeFromImage']);
+    Route::post('/boa/verify', [ImageVerificationController::class, 'verifyBoaFromImage']);
+    Route::post('/telebirr/verify', [ImageVerificationController::class, 'verifyTelebirrFromImage']);
 });
 
 // // QR Code Scanner Routes

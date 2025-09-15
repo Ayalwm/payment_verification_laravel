@@ -24,18 +24,27 @@ Route::get('/', function () {
                 'endpoint' => '/api/telebirr/verify',
                 'method' => 'POST',
                 'params' => ['transaction_id']
+            ],
+            'Image_Verification' => [
+                'name' => 'Image-based Verification',
+                'endpoints' => [
+                    'CBE' => [
+                        'endpoint' => '/api/image/cbe/verify',
+                        'method' => 'POST',
+                        'params' => ['image (file)', 'account_number (optional)']
+                    ],
+                    'BOA' => [
+                        'endpoint' => '/api/image/boa/verify',
+                        'method' => 'POST',
+                        'params' => ['image (file)', 'sender_account (optional)']
+                    ],
+                    'Telebirr' => [
+                        'endpoint' => '/api/image/telebirr/verify',
+                        'method' => 'POST',
+                        'params' => ['image (file)']
+                    ]
+                ]
             ]
-        //     'QR_Scanner' => [
-        // 'name' => 'QR Code Scanner (Multi-Service)',
-        // 'endpoint' => '/api/qr/scan',
-        // 'method' => 'POST',
-        // 'params' => ['image', 'account_number (optional)', 'service (optional)'],
-        // 'supported_services' => [
-        //     'CBE' => 'account_number (optional, defaults to 76316166)',
-        //     'Telebirr' => 'no additional parameters needed',
-        //     'BOA' => 'account_number (required, last 5 digits of source account)'
-        // ]
-    // ]
         ],
         'timestamp' => now()
     ]);
