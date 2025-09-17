@@ -39,7 +39,7 @@ class ImageVerificationController extends Controller
             // Validate image upload
             $validator = Validator::make($request->all(), [
                 'image' => 'required|file|image|mimes:jpeg,png,jpg,gif|max:10240', // 10MB max
-                'account_number' => 'nullable|string|min:8|max:20'
+                'account_number' => 'required|string|min:8|max:20'
             ]);
 
             if ($validator->fails()) {
@@ -71,7 +71,8 @@ class ImageVerificationController extends Controller
                 $cbeData = $this->imageProcessor->extractCbeDataFromQr($qrData);
                 if ($cbeData) {
                     $transactionId = $cbeData['transaction_id'];
-                    $extractedAccountNumber = $extractedAccountNumber ?: $cbeData['account_number'];
+                    // If QR contains account number, use it; otherwise use provided account number
+                    $extractedAccountNumber = $cbeData['account_number'] ?: $accountNumber;
                 }
             }
 
@@ -96,17 +97,18 @@ class ImageVerificationController extends Controller
                 ], 400);
             }
 
-            if (!$extractedAccountNumber) {
+            // Validate that we have both transaction ID and account number
+            if (!$extractedAccountNumber || strlen($extractedAccountNumber) < 8) {
                 return response()->json([
-                    'success' => true,
-                    'message' => 'CBE transaction ID extracted. Account number required.',
+                    'success' => false,
+                    'message' => 'Account number is required and must be at least 8 digits for CBE verification',
                     'data' => [
                         'transaction_id' => $transactionId,
-                        'account_number' => null,
+                        'account_number' => $extractedAccountNumber,
                         'status' => 'Account Number Required',
-                        'debug_info' => 'Transaction ID found but account number is required for verification'
+                        'debug_info' => 'Transaction ID found but valid account number is required for CBE verification'
                     ]
-                ]);
+                ], 400);
             }
 
             // Verify with CBE service

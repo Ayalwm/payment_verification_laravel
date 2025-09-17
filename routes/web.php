@@ -31,7 +31,7 @@ Route::get('/', function () {
                     'CBE' => [
                         'endpoint' => '/api/image/cbe/verify',
                         'method' => 'POST',
-                        'params' => ['image (file)', 'account_number (optional)']
+                        'params' => ['image (file)', 'account_number (required)']
                     ],
                     'BOA' => [
                         'endpoint' => '/api/image/boa/verify',
