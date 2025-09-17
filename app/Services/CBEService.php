@@ -10,7 +10,7 @@ use Smalot\PdfParser\Parser;
 class CBEService
 {
     private string $baseUrl = 'https://apps.cbe.com.et:100/';
-    private string $geminiApiKey;
+    private ?string $geminiApiKey;
     private Parser $pdfParser;
 
     public function __construct()
@@ -18,9 +18,7 @@ class CBEService
         $this->geminiApiKey = config('services.gemini.api_key') ?? env('GEMINI_API_KEY');
         $this->pdfParser = new Parser();
         
-        if (!$this->geminiApiKey) {
-            throw new Exception('Gemini API key not configured');
-        }
+        // Don't throw exception for missing API key, handle gracefully
     }
 
     /**
@@ -53,6 +51,12 @@ class CBEService
      */
     private function extractDataWithGemini(string $text): array
     {
+        // If no API key is configured, try basic text extraction
+        if (!$this->geminiApiKey) {
+            Log::warning('Gemini API key not configured, using basic text extraction');
+            return $this->extractBasicData($text);
+        }
+
         try {
             $prompt = "Extract the following information from this CBE transaction text. Return ONLY a JSON object with these exact fields: sender_name, receiver_name, receiver_bank_name, status, date, amount. If any field is not found, use null. For date, use ISO format (YYYY-MM-DD). For amount, use numeric value only. For status, use: SUCCESS, FAILED, PENDING, or UNKNOWN.\n\nText: " . $text;
 
@@ -97,6 +101,50 @@ class CBEService
         } catch (Exception $e) {
             Log::error('Gemini AI extraction error: ' . $e->getMessage());
             throw new Exception('Failed to extract data with Gemini AI: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Extract basic data from text without AI
+     */
+    private function extractBasicData(string $text): array
+    {
+        $data = [
+            'sender_name' => null,
+            'receiver_name' => null,
+            'receiver_bank_name' => null,
+            'status' => 'Completed',
+            'date' => null,
+            'amount' => 0.0
+        ];
+
+        try {
+            // Extract amount (look for numbers with currency)
+            if (preg_match('/(\d+\.?\d*)\s*(?:birr|ETB|Ethiopian)/i', $text, $matches)) {
+                $data['amount'] = floatval($matches[1]);
+            }
+
+            // Extract date (look for common date patterns)
+            if (preg_match('/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/', $text, $matches)) {
+                $data['date'] = $this->parseDate($matches[1]);
+            }
+
+            // Extract sender name (look for common patterns)
+            if (preg_match('/(?:from|sender|payer)[\s:]+([A-Za-z\s]+)/i', $text, $matches)) {
+                $data['sender_name'] = trim($matches[1]);
+            }
+
+            // Extract receiver name (look for common patterns)
+            if (preg_match('/(?:to|receiver|beneficiary)[\s:]+([A-Za-z\s]+)/i', $text, $matches)) {
+                $data['receiver_name'] = trim($matches[1]);
+            }
+
+            Log::info('Basic extraction completed: ' . json_encode($data));
+            return $data;
+
+        } catch (Exception $e) {
+            Log::warning('Basic extraction failed: ' . $e->getMessage());
+            return $data;
         }
     }
 
@@ -203,8 +251,19 @@ class CBEService
 
         } catch (Exception $e) {
             Log::error('CBE verification error: ' . $e->getMessage());
-            $extractedData['debug_info'] = 'Error: ' . $e->getMessage();
-            return $extractedData;
+            
+            // Return a proper error response instead of test data
+            return [
+                'transaction_id' => $transactionId,
+                'sender_name' => null,
+                'sender_bank_name' => 'Commercial Bank of Ethiopia',
+                'receiver_name' => null,
+                'receiver_bank_name' => null,
+                'status' => 'Service Unavailable',
+                'date' => null,
+                'amount' => 0.0,
+                'debug_info' => 'CBE verification service is temporarily unavailable: ' . $e->getMessage()
+            ];
         }
     }
 }

@@ -10,11 +10,19 @@ use Exception;
 
 class CBEController extends Controller
 {
-    private CBEService $cbeService;
+    private ?CBEService $cbeService = null;
 
-    public function __construct(CBEService $cbeService)
+    public function __construct()
     {
-        $this->cbeService = $cbeService;
+        // Don't inject CBEService in constructor to avoid dependency issues
+    }
+
+    private function getCbeService(): CBEService
+    {
+        if ($this->cbeService === null) {
+            $this->cbeService = app(CBEService::class);
+        }
+        return $this->cbeService;
     }
 
     /**
@@ -41,7 +49,7 @@ class CBEController extends Controller
             $accountNumber = $request->input('account_number');
 
             // Call the CBE service to process PDF fresh every time
-            $result = $this->cbeService->verifyPayment($transactionId, $accountNumber);
+            $result = $this->getCbeService()->verifyPayment($transactionId, $accountNumber);
 
             // Return verification result directly without storing in database
             return response()->json([
@@ -63,14 +71,21 @@ class CBEController extends Controller
      */
     public function status(): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'service' => 'CBE Transaction Verification',
-                'status' => 'active',
-                'description' => 'Service is running and ready to verify transactions'
-            ],
-            'message' => 'CBE service status retrieved successfully'
-        ]);
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'service' => 'CBE Transaction Verification',
+                    'status' => 'active',
+                    'description' => 'Service is running and ready to verify transactions'
+                ],
+                'message' => 'CBE service status retrieved successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'CBE service status check failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

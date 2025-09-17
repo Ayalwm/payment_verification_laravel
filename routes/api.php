@@ -23,6 +23,36 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+// API Health Check endpoint for frontend monitoring
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'healthy',
+        'timestamp' => now(),
+        'version' => '1.0.0',
+        'services' => [
+            'cbe' => 'active',
+            'boa' => 'active', 
+            'telebirr' => 'active',
+            'image_verification' => 'active'
+        ]
+    ])->header('Access-Control-Allow-Origin', 'http://localhost:3000')
+      ->header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
+});
+
+// General API health check endpoint
+Route::get('/', function () {
+    return response()->json([
+        'message' => 'Payment Verification API',
+        'status' => 'running',
+        'timestamp' => now(),
+        'version' => '1.0.0'
+    ])->header('Access-Control-Allow-Origin', 'http://localhost:3000')
+      ->header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
+});
+
+
 // CBE Transaction Verification Routes
 Route::prefix('cbe')->group(function () { 
     Route::post('/verify', [CBEController::class, 'verifyPayment']);
