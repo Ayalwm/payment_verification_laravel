@@ -87,12 +87,37 @@ class ImageVerificationController extends Controller
             if (!$transactionId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No CBE transaction ID found in image',
+                    'message' => 'Unable to extract transaction ID from image. Please enter it manually.',
                     'data' => [
                         'transaction_id' => null,
                         'account_number' => $extractedAccountNumber,
-                        'status' => 'No Transaction ID Found',
-                        'debug_info' => 'Could not extract transaction ID from image using QR code or OCR'
+                        'status' => 'Manual Entry Required',
+                        'debug_info' => 'Could not extract transaction ID from image using QR code or OCR. Please enter transaction ID manually.',
+                        'suggested_action' => 'manual_entry',
+                        'error_type' => 'manual_entry_required',
+                        'ui_action' => 'switch_to_manual_tab'
+                    ]
+                ], 400);
+            }
+
+            // Check if transaction ID is valid for CBE (exactly 12 characters)
+            $isValidTransactionId = $transactionId && 
+                strlen($transactionId) === 12 && 
+                !in_array(strtoupper($transactionId), ['NOT', 'NO', 'NONE', 'NULL', 'ERROR', 'FAIL', 'FAILED']) &&
+                preg_match('/^[A-Za-z0-9]+$/', $transactionId);
+
+            if (!$isValidTransactionId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to extract valid transaction ID from image. Please enter it manually.',
+                    'data' => [
+                        'transaction_id' => null,
+                        'account_number' => $extractedAccountNumber,
+                        'status' => 'Manual Entry Required',
+                        'debug_info' => 'Extracted ID is not 12 alphanumeric characters: ' . $transactionId,
+                        'suggested_action' => 'manual_entry',
+                        'error_type' => 'manual_entry_required',
+                        'ui_action' => 'switch_to_manual_tab'
                     ]
                 ], 400);
             }
@@ -164,15 +189,36 @@ class ImageVerificationController extends Controller
             $extractedData = $this->imageProcessor->extractTransactionIdFromImage($imageBase64);
             $transactionId = $extractedData['transaction_id'] ?? null;
 
-            if (!$transactionId) {
+            // Check if transaction ID is valid for BOA (exactly 12 characters)
+            $isValidTransactionId = $transactionId && 
+                strlen($transactionId) === 12 && 
+                !in_array(strtoupper($transactionId), ['NOT', 'NO', 'NONE', 'NULL', 'ERROR', 'FAIL', 'FAILED']) &&
+                preg_match('/^[A-Za-z0-9]+$/', $transactionId);
+
+            if (!$isValidTransactionId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No BOA transaction ID found in image',
+                    'message' => 'Unable to extract valid transaction ID from image. Please enter it manually.',
                     'data' => [
                         'transaction_id' => null,
                         'sender_account' => $senderAccount,
-                        'status' => 'No Transaction ID Found',
-                        'debug_info' => 'Could not extract transaction ID from image using OCR'
+                        'status' => 'Manual Entry Required',
+                        'debug_info' => 'Extracted ID is not 12 alphanumeric characters: ' . $transactionId,
+                        'suggested_action' => 'manual_entry'
+                    ]
+                ], 400);
+            }
+
+            if (!$transactionId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to extract transaction ID from image. Please enter it manually.',
+                    'data' => [
+                        'transaction_id' => null,
+                        'sender_account' => $senderAccount,
+                        'status' => 'Manual Entry Required',
+                        'debug_info' => 'Could not extract transaction ID from image using OCR. Please enter transaction ID manually.',
+                        'suggested_action' => 'manual_entry'
                     ]
                 ], 400);
             }
@@ -244,22 +290,50 @@ class ImageVerificationController extends Controller
             $extractedData = $this->imageProcessor->extractTransactionIdFromImage($imageBase64);
             $transactionId = $extractedData['transaction_id'] ?? null;
 
-            if (!$transactionId) {
+            // Debug logging
+            \Log::info('Telebirr Image Processing Debug:', [
+                'extracted_data' => $extractedData,
+                'transaction_id' => $transactionId,
+                'is_null' => is_null($transactionId),
+                'is_empty' => empty($transactionId)
+            ]);
+
+            // Check if transaction ID is valid for Telebirr (typically 10 characters)
+            $isValidTransactionId = $transactionId && 
+                strlen($transactionId) === 10 && 
+                !in_array(strtoupper($transactionId), ['NOT', 'NO', 'NONE', 'NULL', 'ERROR', 'FAIL', 'FAILED']) &&
+                preg_match('/^[A-Za-z0-9]+$/', $transactionId);
+
+            // Debug validation
+            \Log::info('Telebirr Validation Debug:', [
+                'transaction_id' => $transactionId,
+                'length' => $transactionId ? strlen($transactionId) : 'null',
+                'is_10_chars' => $transactionId ? strlen($transactionId) === 10 : false,
+                'is_error_word' => $transactionId ? in_array(strtoupper($transactionId), ['NOT', 'NO', 'NONE', 'NULL', 'ERROR', 'FAIL', 'FAILED']) : false,
+                'is_alphanumeric' => $transactionId ? preg_match('/^[A-Za-z0-9]+$/', $transactionId) : false,
+                'is_valid' => $isValidTransactionId
+            ]);
+
+            if (!$isValidTransactionId) {
+                // If image processing fails or extracts invalid text, always ask for manual entry
+                \Log::info('Telebirr: Returning Manual Entry Required due to invalid transaction ID');
                 return response()->json([
                     'success' => false,
-                    'message' => 'No Telebirr transaction ID found in image',
+                    'message' => 'Unable to extract transaction ID from image. Please enter it manually.',
                     'data' => [
                         'transaction_id' => null,
-                        'status' => 'No Transaction ID Found',
-                        'debug_info' => 'Could not extract transaction ID from image using OCR'
+                        'status' => 'Manual Entry Required',
+                        'debug_info' => 'Could not extract valid transaction ID from image using OCR. Please enter transaction ID manually.',
+                        'suggested_action' => 'manual_entry'
                     ]
                 ], 400);
             }
 
-            // First try with the original extracted ID
+            // Try verification with the extracted ID
+            \Log::info('Telebirr: Proceeding to call Telebirr service with transaction ID: ' . $transactionId);
             $result = $this->telebirrService->verifyPayment($transactionId);
             
-            // If original ID succeeds, return it
+            // If verification succeeds, return success
             if (isset($result['status']) && strtoupper($result['status']) === 'SUCCESS') {
                 return response()->json([
                     'success' => true,
@@ -268,50 +342,28 @@ class ImageVerificationController extends Controller
                 ]);
             }
 
-            // Check if this ID has 0/O characters that need swapping
+            // Check if the transaction ID contains 0 or O characters
             $hasZeroOrO = preg_match('/[0O]/', $transactionId);
             
-            if (!$hasZeroOrO) {
-                // No 0/O characters, return the failed result directly
+            if ($hasZeroOrO) {
+                // If verification fails and ID has 0/O, ask user to verify manually
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Telebirr verification failed. Please verify the transaction ID manually.',
+                    'data' => [
+                        'transaction_id' => $transactionId,
+                        'status' => 'Manual Entry Required',
+                        'debug_info' => 'Transaction ID contains 0/O characters and verification failed. Please check the ID and try manual entry.',
+                        'suggested_action' => 'manual_entry'
+                    ]
+                ], 400);
+            } else {
+                // If verification fails but no 0/O, return normal failure
                 return response()->json([
                     'success' => false,
                     'data' => $result,
                     'message' => 'Telebirr verification failed'
-                ]);
-            }
-
-            // Has 0/O characters, try swap combinations
-            $triedIds = [$transactionId]; // Track original ID
-            $success = false;
-            $finalResult = null;
-
-            foreach ($this->generateZeroOLetterCombinations($transactionId) as $candidateId) {
-                if (in_array($candidateId, $triedIds)) continue;
-                $triedIds[] = $candidateId;
-                
-                $candidateResult = $this->telebirrService->verifyPayment($candidateId);
-                
-                if (isset($candidateResult['status']) && strtoupper($candidateResult['status']) === 'SUCCESS') {
-                    $success = true;
-                    $finalResult = $candidateResult;
-                    break;
-                }
-            }
-
-            // Return successful result if found, otherwise return failed result
-            if ($success) {
-                return response()->json([
-                    'success' => true,
-                    'data' => $finalResult,
-                    'message' => 'Telebirr image verification completed (with 0/O swap)'
-                ]);
-            } else {
-                // All attempts failed, return failed result
-                return response()->json([
-                    'success' => false,
-                    'data' => $result,
-                    'message' => 'Telebirr verification failed (tried 0/O swaps)'
-                ]);
+                ], 400);
             }
 
         } catch (Exception $e) {
@@ -322,35 +374,5 @@ class ImageVerificationController extends Controller
         }
     }
 
-    /**
-     * Generate all 0/O swap combinations for a string (only '0' and 'O', uppercase)
-     */
-    private function generateZeroOLetterCombinations($input)
-    {
-        $positions = [];
-        $chars = str_split($input);
-        foreach ($chars as $i => $c) {
-            if ($c === '0' || $c === 'O') {
-                $positions[] = $i;
-            }
-        }
-        $combos = [];
-        $total = count($positions);
-        $max = pow(2, $total);
-        for ($i = 0; $i < $max; $i++) {
-            $newChars = $chars;
-            for ($j = 0; $j < $total; $j++) {
-                $pos = $positions[$j];
-                // If bit is set, swap
-                if ($i & (1 << $j)) {
-                    $newChars[$pos] = ($chars[$pos] === '0') ? 'O' : '0';
-                } else {
-                    $newChars[$pos] = $chars[$pos];
-                }
-            }
-            $combos[] = implode('', $newChars);
-        }
-        return array_unique($combos);
-    }
 
 }
