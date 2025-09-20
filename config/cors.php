@@ -26,13 +26,14 @@ return [
         'http://localhost:8080',  // Vue default
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
-        // Add your production frontend URL here
-        // 'https://your-frontend-domain.com'
+        'https://paymentverifier.vercel.app/',
     ],
 
     'allowed_origins_patterns' => [
         '/^http:\/\/localhost:\d+$/',  // Allow any localhost port
         '/^http:\/\/127\.0\.0\.1:\d+$/',  // Allow any 127.0.0.1 port
+        '/^https:\/\/.*\.vercel\.app$/',  // Allow any Vercel deployment
+        '/^https:\/\/.*\.vercel\.dev$/',  // Allow Vercel preview deployments
     ],
 
     'allowed_headers' => [
